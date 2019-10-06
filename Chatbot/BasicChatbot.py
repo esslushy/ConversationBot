@@ -4,6 +4,12 @@ tf.random.set_seed(7)
 import tensorflow_datasets as tfds
 import re
 import os
+# Global settings and parameters
+from settings import *
+# Model
+from model import transformer
+# Preprocessing
+from preprocessing import preprocess_sentence
 
 # Download Dataset. New tool from keras
 path_to_zip = tf.keras.utils.get_file('cornell_movie_dialogs.zip', 
@@ -14,19 +20,6 @@ path_to_dataset = os.path.join(os.path.dirname(path_to_zip), "cornell movie-dial
 path_to_movie_lines = os.path.join(path_to_dataset, 'movie_lines.txt')
 path_to_movie_conversations = os.path.join(path_to_dataset, 'movie_conversations.txt')
 
-# Preprocessing Function
-def preprocess_sentence(sentence):
-    # Makes the sentence lowercase and removes trailing whitespace
-    sentence = sentence.lower().strip()
-    # Places a space between words and punctuation for clarity
-    sentence = re.sub(r'([?.!,;])', r' \1', sentence)
-    # Turns all whitespace into a whitespace of length one for easier use later
-    sentence = re.sub(r'[" "]+', ' ', sentence)
-    # Replace everything with a space that doesn't match use punctuation, words, or numbers
-    sentence = re.sub(r'[^a-zA-z?.!,; ]+', '', sentence)
-    # Strip any added trailing white space after this
-    sentence = sentence.strip()
-    return sentence
 
 # Data Loading Function
 def load_data():
@@ -63,4 +56,116 @@ def load_data():
 
 prompts, responses = load_data()
 
-print(prompts[20], '\n',  responses[20])
+# Build tokenizer using tfds for both prompts and responses. This turns words into positive integers.
+tokenizer = tfds.features.text.SubwordTextEncoder.build_from_corpus(
+    prompts + responses, target_vocab_size=2**13)
+
+# Define start and end token to indicate the start and end of a sentence
+START_TOKEN, END_TOKEN = [tokenizer.vocab_size], [tokenizer.vocab_size + 1]
+
+# Vocabulary size plus start and end token
+VOCAB_SIZE = tokenizer.vocab_size + 2
+
+# Tokenize, filter and pad sentences
+def tokenize_and_filter(inputs, outputs):
+  tokenized_inputs, tokenized_outputs = [], []
+  
+  for (sentence1, sentence2) in zip(inputs, outputs):
+    # Tokenize sentences
+    sentence1 = START_TOKEN + tokenizer.encode(sentence1) + END_TOKEN
+    sentence2 = START_TOKEN + tokenizer.encode(sentence2) + END_TOKEN
+    # Check tokenized sentence max length. If it exceeds remove it.
+    if len(sentence1) <= MAX_LENGTH and len(sentence2) <= MAX_LENGTH:
+      tokenized_inputs.append(sentence1)
+      tokenized_outputs.append(sentence2)
+  
+  # Pad tokenized sentences so that they are all of consistent length.
+  tokenized_inputs = tf.keras.preprocessing.sequence.pad_sequences(
+      tokenized_inputs, maxlen=MAX_LENGTH, padding='post')
+  tokenized_outputs = tf.keras.preprocessing.sequence.pad_sequences(
+      tokenized_outputs, maxlen=MAX_LENGTH, padding='post')
+  
+  return tokenized_inputs, tokenized_outputs
+
+prompts, responses = tokenize_and_filter(prompts, responses)
+
+# Build the dataset
+# Decoder inputs use the previous target as part of the input
+# Remove START_TOKEN from targets
+dataset = tf.data.Dataset.from_tensor_slices((
+    {
+        'inputs': prompts,
+        'dec_inputs': responses[:, :-1]
+    },
+    {
+        'outputs': responses[:, 1:]
+    },
+))
+
+# Apply operations to speed up dataset loading, shuffle the dataset, batch samples.
+dataset = dataset.cache()
+dataset = dataset.shuffle(BUFFER_SIZE)
+dataset = dataset.batch(BATCH_SIZE)
+dataset = dataset.prefetch(tf.data.experimental.AUTOTUNE)
+# Dataset inputs ((None, 40), (None, 39)) and outputs (None, 39)
+
+# Build model
+model = transformer(vocab_size=VOCAB_SIZE, num_layers=NUM_LAYERS, units=UNITS, d_model=D_MODEL, num_heads=NUM_HEADS, dropout=DROPOUT)
+
+# Loss function
+def loss_function(y_true, y_pred):
+    # Clip y_true within max length
+    y_true = tf.reshape(y_true, shape=(-1, MAX_LENGTH - 1))
+    # Sparse categorical loss
+    loss = tf.keras.losses.SparseCategoricalCrossentropy(
+        from_logits=True, reduction='none')(y_true, y_pred)
+    # Mask the loss function to only care about non-zero inputs
+    mask = tf.cast(tf.not_equal(y_true, 0), tf.float32)
+    loss = tf.multiply(loss, mask)
+
+    return tf.reduce_mean(loss)
+
+# Learning rate schedule
+class CustomSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
+    """
+      Args:
+        d_model: the last section of data or the information about words
+        warmup_steps: learning rate acceleration time period before drop off
+
+      Calculates learning rate according to the paper by this formula:
+        learning_rate=d_model^-0.5 * min(step_num^-0.5, step_num*warmup_steps^-1.5)
+    """
+    def __init__(self, d_model, warmup_steps=4000):
+        super(CustomSchedule, self).__init__()
+
+        self.d_model = d_model
+        self.d_model = tf.cast(self.d_model, tf.float32)
+
+        self.warmup_steps = warmup_steps
+
+    def __call__(self, step):
+        arg1 = tf.math.rsqrt(step)
+        arg2 = step * (self.warmup_steps**-1.5)
+
+        return tf.math.rsqrt(self.d_model) * tf.math.minimum(arg1, arg2)
+
+# Compile model
+learning_rate = CustomSchedule(D_MODEL)
+# Adam optimizer with some small changes. Very tiny epsilon and much higher beta_1
+optimizer = tf.keras.optimizers.Adam(learning_rate, beta_1=0.9, beta_2=0.98, epsilon=1e-9)
+# Modified accuracy calculation to work with model
+def accuracy(y_true, y_pred):
+    # ensure labels have shape (batch_size, MAX_LENGTH - 1)
+    y_true = tf.reshape(y_true, shape=(-1, MAX_LENGTH - 1))
+    accuracy = tf.metrics.SparseCategoricalAccuracy()(y_true, y_pred)
+    return accuracy
+
+model.compile(optimizer=optimizer, loss=loss_function, metrics=[accuracy],
+            callbacks=[tf.keras.callbacks.TensorBoard(logdir=TENSORBOARD_LOCATION, update_freq=200, profile_batch=0)])
+
+# Train model
+model.fit(dataset, epochs=EPOCHS)
+
+# Save model
+tf.saved_model.save(model, MODEL_LOCATION)
+tokenizer.save_to_file(TOKENIZER_LOCATION)
