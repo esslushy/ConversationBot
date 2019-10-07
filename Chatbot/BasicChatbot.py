@@ -12,9 +12,12 @@ from model import transformer
 from preprocessing import preprocess_sentence
 
 # Make directories for files
-os.mkdir(MODEL_LOCATION)
-os.mkdir(TOKENIZER_LOCATION)
-os.mkdir(TENSORBOARD_LOCATION)
+try:
+    os.mkdir(MODEL_LOCATION)
+    os.mkdir(TOKENIZER_LOCATION)
+    os.mkdir(TENSORBOARD_LOCATION)
+except FileExistsError as e:
+    print('Folders already exist for saving data.')
 
 # Download Dataset. New tool from keras
 path_to_zip = tf.keras.utils.get_file('cornell_movie_dialogs.zip', 

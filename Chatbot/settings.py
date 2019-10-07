@@ -13,7 +13,8 @@ NUM_HEADS = 8
 UNITS = 512
 DROPOUT = 0.1
 # Logging information
-TENSORBOARD_LOCATION = 'info/run1'
+TENSORBOARD_LOCATION = 'info/run1/'
 # Save locations for model and tokenizer
-MODEL_LOCATION = 'model/run1'
-TOKENIZER_LOCATION = 'tokenizer/run1'
+MODEL_LOCATION = 'model/run1/'
+TOKENIZER_LOCATION = 'tokenizer/run1/'
+TOKENIZER_NAME = 'tokenizer'
