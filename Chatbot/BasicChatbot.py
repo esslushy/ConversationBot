@@ -159,8 +159,8 @@ class CustomSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
     # Override get_config
     def get_config(self):
         return {
-            'd_model' : self.d_model,
-            'warmup_steps' : self.warmup_steps
+            'd_model' : self.d_model.numpy,
+            'warmup_steps' : self.warmup_steps.numpy
         }
 
 # Compile model
@@ -183,4 +183,4 @@ model.fit(dataset, epochs=EPOCHS)
 
 # Save model
 tf.saved_model.save(model, MODEL_LOCATION)
-tokenizer.save_to_file(TOKENIZER_LOCATION)
+tokenizer.save_to_file(TOKENIZER_LOCATION + TOKENIZER_NAME)
