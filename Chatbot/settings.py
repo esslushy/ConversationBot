@@ -5,7 +5,7 @@ BATCH_SIZE = 64
 # Shuffle Buffer
 BUFFER_SIZE = 20000
 # Number of epochs to train for
-EPOCHS = 1
+EPOCHS = 20
 # Hyper-parameters. Made according to the paper: https://arxiv.org/abs/1706.03762
 NUM_LAYERS = 2
 D_MODEL = 256

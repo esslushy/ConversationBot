@@ -159,8 +159,8 @@ class CustomSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
     # Override get_config
     def get_config(self):
         return {
-            'd_model' : self.d_model.numpy,
-            'warmup_steps' : self.warmup_steps.numpy
+            'd_model' : self.d_model.numpy(),
+            'warmup_steps' : self.warmup_steps
         }
 
 # Compile model
