@@ -11,6 +11,14 @@ from model import transformer
 # Preprocessing
 from preprocessing import preprocess_sentence
 
+# Make directories for files
+try:
+    os.mkdir(MODEL_LOCATION)
+    os.mkdir(TOKENIZER_LOCATION)
+    os.mkdir(TENSORBOARD_LOCATION)
+except FileExistsError as e:
+    print('Folders already exist for saving data.')
+
 # Download Dataset. New tool from keras
 path_to_zip = tf.keras.utils.get_file('cornell_movie_dialogs.zip', 
                                     origin='http://www.cs.cornell.edu/~cristian/data/cornell_movie_dialogs_corpus.zip', extract=True)
@@ -19,7 +27,6 @@ path_to_dataset = os.path.join(os.path.dirname(path_to_zip), "cornell movie-dial
 # Get the lines and the conversation hooks
 path_to_movie_lines = os.path.join(path_to_dataset, 'movie_lines.txt')
 path_to_movie_conversations = os.path.join(path_to_dataset, 'movie_conversations.txt')
-
 
 # Data Loading Function
 def load_data():
@@ -148,24 +155,32 @@ class CustomSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
         arg2 = step * (self.warmup_steps**-1.5)
 
         return tf.math.rsqrt(self.d_model) * tf.math.minimum(arg1, arg2)
+    
+    # Override get_config
+    def get_config(self):
+        return {
+            'd_model' : self.d_model.numpy(),
+            'warmup_steps' : self.warmup_steps
+        }
 
 # Compile model
 learning_rate = CustomSchedule(D_MODEL)
 # Adam optimizer with some small changes. Very tiny epsilon and much higher beta_1
 optimizer = tf.keras.optimizers.Adam(learning_rate, beta_1=0.9, beta_2=0.98, epsilon=1e-9)
 # Modified accuracy calculation to work with model
+sparse_categorical_accuracy = tf.metrics.SparseCategoricalAccuracy()
 def accuracy(y_true, y_pred):
     # ensure labels have shape (batch_size, MAX_LENGTH - 1)
     y_true = tf.reshape(y_true, shape=(-1, MAX_LENGTH - 1))
-    accuracy = tf.metrics.SparseCategoricalAccuracy()(y_true, y_pred)
+    accuracy = sparse_categorical_accuracy(y_true, y_pred)
     return accuracy
 
 model.compile(optimizer=optimizer, loss=loss_function, metrics=[accuracy],
-            callbacks=[tf.keras.callbacks.TensorBoard(logdir=TENSORBOARD_LOCATION, update_freq=200, profile_batch=0)])
+            callbacks=[tf.keras.callbacks.TensorBoard(log_dir=TENSORBOARD_LOCATION, update_freq='batch', profile_batch=0)])
 
 # Train model
 model.fit(dataset, epochs=EPOCHS)
 
 # Save model
 tf.saved_model.save(model, MODEL_LOCATION)
-tokenizer.save_to_file(TOKENIZER_LOCATION)
+tokenizer.save_to_file(TOKENIZER_LOCATION + TOKENIZER_NAME)
