@@ -5,8 +5,7 @@ from settings import *
 from preprocessing import preprocess_sentence
 
 # Load tokenizer
-tokenizer = tfds.features.text.SubwordTextEncoder([])
-tokenizer = tokenizer.load_from_file(TOKENIZER_LOCATION + TOKENIZER_NAME)
+tokenizer = tfds.features.text.SubwordTextEncoder.load_from_file(TOKENIZER_LOCATION + TOKENIZER_NAME)
 
 # Remake tokens
 START_TOKEN, END_TOKEN = [tokenizer.vocab_size], [tokenizer.vocab_size + 1]
