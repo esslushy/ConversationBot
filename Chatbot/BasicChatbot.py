@@ -5,11 +5,11 @@ import tensorflow_datasets as tfds
 import re
 import os
 # Global settings and parameters
-from settings import *
+from .settings import *
 # Model
-from model import transformer
+from .model import transformer
 # Preprocessing
-from preprocessing import preprocess_sentence
+from .preprocessing import preprocess_sentence
 
 # Make directories for files
 try:

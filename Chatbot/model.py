@@ -239,8 +239,6 @@ def encoder(vocab_size, num_layers, units, d_model, num_heads, dropout, name='en
       The input is put through an embedding which is summed with the positional encoding.
       The output of this summation is the input to the encoder layers. The output of the
       encoder is the input to the decoder.
-
-      Later could be replaced with google's nnlm model, but unsure for now.
     """
     # Build inputs and mask
     inputs = tf.keras.Input(shape=(None,), name='inputs')

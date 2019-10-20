@@ -1,8 +1,8 @@
 import tensorflow as tf
 import tensorflow_datasets as tfds
 
-from settings import *
-from preprocessing import preprocess_sentence
+from .settings import *
+from .preprocessing import preprocess_sentence
 
 # Load tokenizer
 tokenizer = tfds.features.text.SubwordTextEncoder.load_from_file(TOKENIZER_LOCATION + TOKENIZER_NAME)

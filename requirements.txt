@@ -1,2 +1,2 @@
-tensorflow-gpu>=2.0.0-rc2
+tensorflow-gpu>=2.0.0
 tfds-nightly
